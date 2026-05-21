@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <link rel="icon" href="data:,">
+  <title>{{ title }}</title>
+  {% if og_image %}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ og_description }}">
+  <meta property="og:image" content="{{ og_image }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ og_image }}">
+  {% endif %}
+  <link rel="stylesheet" href="{{ styles_href }}">
+  <script src="{{ dmax_src }}"></script>
+  <script src="{{ script_src }}" defer></script>
+  <script type="module" src="{{ game_board_src }}"></script>
+  <script type="module" src="{{ scrub_knob_src }}"></script>
+  {{ head_extra | safe }}
+</head>
+<body class="{{ body_class }}"{% for a in body_attrs %} {{ a.key }}="{{ a.value }}"{% endfor %}>
+<header class="site-header">
+  <a class="site-title" href="{{ splash_href }}">nu2048</a>
+  <div class="site-header-right">
+    {% if player_id %}<a class="you-are" href="{{ my_games_href }}" title="your games (profile soon)">you are: <code>{{ player_id }}</code></a>{% endif %}
+    {% if sse %}<div class="status">
+      <span id="conn" class="stat" data-m-ex:.@sse-open="val ? 'ok' : ((dm.sseError || dm.sseClose) ? 'down' : '')"></span>
+      <span id="rtt" class="stat"></span>
+    </div>{% endif %}
+    <span class="credit">
+      <a href="https://http-nu.cross.stream">served by http-nu <img src="{{ ellie_href }}" alt="ellie" class="mascot"></a>
+    </span>
+  </div>
+</header>
+{{ body_html | safe }}
+{% if design_href %}<footer class="site-footer">
+  <a href="{{ design_href }}">design</a>
+</footer>{% endif %}
+</body>
+</html>

@@ -1,8 +1,5 @@
-// Input handlers for 2048. Server embeds the player id and the /move URL
-// as body data-* attributes so this file stays parameter-free and cacheable.
-const playerId = document.body.dataset.playerId;
-const gameId = document.body.dataset.gameId;
-const moveUrl = document.body.dataset.moveUrl;
+// Input handlers for 2048. Server embeds only the nav hrefs as body
+// data-* attrs so this file stays parameter-free and cacheable.
 const homeHref = document.body.dataset.homeHref;
 const newHref = document.body.dataset.newHref;
 
@@ -14,9 +11,10 @@ const newHref = document.body.dataset.newHref;
 let movePending = null;
 let pingPending = null;
 
+const isPlay = document.body.classList.contains("play");
 const flashRed = () => {
   document.body.classList.remove("flash-red");
-  void document.body.offsetWidth;  // force reflow so animation restarts
+  void document.body.offsetWidth;
   document.body.classList.add("flash-red");
 };
 
@@ -44,75 +42,23 @@ const stopPinging = () => {
   pingPending = null;
 };
 
-const move = (intent) => {
-  // Each move carries a uuid the server echoes back via the
-  // $lastReqId signal. window.onAck filters on that uuid so replay
-  // patches and other tabs' acks don't get misattributed.
-  const reqId = crypto.randomUUID();
-  const stamp = performance.now();
-  if (intent === "") {
-    // Heartbeat ping. Replaces any prior unacked ping (older one becomes
-    // orphaned; if its ack later arrives, no slot matches).
-    pingPending = { id: reqId, t: stamp };
-    clearPingTimer();
-    pingTimer = setTimeout(() => setConn("down"), PING_TIMEOUT_MS);
-  } else {
-    movePending = { id: reqId, t: stamp };
-    if ("hjkl".includes(intent)) {
-      document.querySelector("#board-wrap")?.setAttribute("data-pending", intent);
-    }
-    requestAnimationFrame(tickRtt);
-  }
-  return fetch(moveUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ playerId, gameId, intent, reqId }),
-  }).then((r) => {
-    if (!r.ok) {
-      if (intent === "") pingPending = null;
-      else { movePending = null; document.querySelector("#board-wrap")?.removeAttribute("data-pending"); }
-      flashRed();
-    }
-  }).catch(() => {
-    if (intent === "") pingPending = null;
-    else { movePending = null; document.querySelector("#board-wrap")?.removeAttribute("data-pending"); }
-    flashRed();
-  });
-};
+const move = (intent) => dmSet('move-cmd', { playerId: dm.playerId, gameId: dm.gameId, intent, reqId: crypto.randomUUID() });
 
-// SSE liveness. dmax exposes stream lifecycle through signals that we
-// reflect onto body data-* attrs from the server-rendered markup.
+// SSE liveness. dmax exposes grouped stream status through ^stat.sse.
 const setConn = (v) => {
   if (document.body.dataset.conn === v) return;
   document.body.dataset.conn = v;
-  if (v === "down") {
-    movePending = null;
-    rttEl()?.replaceChildren("");
-  }
+  if (v === "down") movePending = null, rttEl()?.replaceChildren("");
 };
 let lastSseOpen = false;
-const syncSseState = () => {
-  const isOpen = document.body.dataset.sseOpen === "1";
-  const hasError = (document.body.dataset.sseError || "") !== "";
-  if (isOpen) {
-    setConn("ok");
-    clearPingTimer();
-    if (moveUrl && !lastSseOpen) {
-      stopPinging();
-      move("");
-      pingInterval = setInterval(() => move(""), PING_INTERVAL_MS);
-    }
-  } else if (hasError || document.body.dataset.sseClose === "1") {
-    setConn("down");
-    stopPinging();
-  }
-  lastSseOpen = isOpen;
+const syncConn = (s = {}) => {
+  if (s.open) {
+    setConn("ok"), clearPingTimer();
+    if (isPlay && !lastSseOpen) stopPinging(), move(""), pingInterval = setInterval(() => move(""), PING_INTERVAL_MS);
+  } else if (s.err || s.close) setConn("down"), stopPinging();
+  lastSseOpen = !!s.open;
 };
-new MutationObserver(syncSseState).observe(document.body, {
-  attributes: true,
-  attributeFilter: ["data-sse-open", "data-sse-close", "data-sse-error"],
-});
-syncSseState();
+dmSub('sse', syncConn);
 
 // Global navigation: Esc -> splash, n -> new game. Registered always so
 // every page (play, watch, my games, splash, notes, design) responds.
@@ -128,41 +74,34 @@ addEventListener("keydown", (e) => {
   }
 });
 
-// Below: /play-only handlers gated on moveUrl (the server-rendered
-// page omits the `data-move-url` body attr on non-/play pages).
-if (moveUrl) {
-// Called by data-on-signal-patch="window.onAck($lastReqId)" on the
-// hidden element in the /play body. The SSE pipeline ships a
-// $lastReqId signal patch the instant it sees the move frame -- so
-// every move (state-changing or no-op) round-trips through here.
-// No-op unless reqId matches the pending probe we issued (replay /
-// spectator streams carry reqIds we never issued; ignore them).
-window.onAck = (reqId) => {
-  // User move resolution: writes the visible RTT readout.
-  if (movePending && reqId === movePending.id) {
-    const rtt = Math.round(performance.now() - movePending.t);
-    movePending = null;
-    document.querySelector("#board-wrap")?.removeAttribute("data-pending");
-    rttEl()?.replaceChildren(`${rtt}ms`);
-    return;
-  }
-  // Heartbeat resolution: clears the ping deadline. Only SEEDS the
-  // visible readout (when it's empty -- fresh page load or post-
-  // disconnect). Subsequent pings keep liveness up but never touch
-  // the display; otherwise the readout would flicker with a new
-  // value every PING_INTERVAL_MS. Move acks own the readout after
-  // the seed.
-  if (pingPending && reqId === pingPending.id) {
-    const rtt = Math.round(performance.now() - pingPending.t);
-    pingPending = null;
-    clearPingTimer();
-    setConn("ok");
-    const el = rttEl();
-    if (el && el.textContent === "" && movePending == null) {
-      el.replaceChildren(`${rtt}ms`);
-    }
-  }
+// Below: /play-only handlers gated on the play view.
+if (isPlay) {
+const boardWrap = document.querySelector("#board-wrap"), clrMove = () => { movePending = null; boardWrap?.removeAttribute("data-pending"); };
+dmSub('move-cmd^notimmediate', (cmd) => {
+  if (!cmd?.reqId) return;
+  const p = { id: cmd.reqId, t: performance.now() };
+  if (cmd.intent === "") return pingPending = p, clearPingTimer(), void (pingTimer = setTimeout(() => setConn("down"), PING_TIMEOUT_MS));
+  movePending = p;
+  if ("hjkl".includes(cmd.intent)) boardWrap?.setAttribute("data-pending", cmd.intent);
+  requestAnimationFrame(tickRtt);
+});
+const ack = (slot, seed) => {
+  if (!slot) return 0;
+  const rtt = `${Math.round(performance.now() - slot.t)}ms`;
+  if (slot === movePending) clrMove(), rttEl()?.replaceChildren(rtt);
+  else pingPending = null, clearPingTimer(), setConn("ok"), seed && !movePending && !rttEl()?.textContent && rttEl()?.replaceChildren(rtt);
+  return 1;
 };
+dmSub('last-req-id^notimmediate', (reqId) => {
+  if (movePending && reqId === movePending.id) return ack(movePending);
+  if (pingPending && reqId === pingPending.id) ack(pingPending, 1);
+});
+dmSub('move-req^notimmediate', (s) => {
+  if (!s?.complete || (!s.err && (!s.code || s.code < 400))) return;
+  pingPending = null;
+  if (movePending) clrMove();
+  flashRed();
+});
 
 // Keyboard: hjkl + arrows + u-to-undo. (New game lives on the splash;
 // reset key is intentionally gone.)
@@ -173,50 +112,30 @@ const keymap = {
   l: "l", ArrowRight: "l",
 };
 
-// Move impulses (h/j/k/l/u). Registered ONLY on the owner's /play page;
-// spectator /watch and chrome pages don't bind this handler at all, so
-// keystrokes never reach a move() call from outside the editor.
-if (document.body.classList.contains("play")) {
-  addEventListener("keydown", (e) => {
-    if (document.body.dataset.conn === "down") return;
-    // Shift+letter sends uppercase ("H"); fall back to lowercased key.
-    const dir = keymap[e.key] || keymap[(e.key + "").toLowerCase()];
-    const intent = dir || (e.key === "u" ? "undo" : "");
-    if (intent) {
-      move(intent);
-      e.preventDefault();
-    }
-  });
-}
-
-// Delegated click handler for kbd-btn move triggers. Game-move kbd-btns
-// render as <button data-intent="h"|"undo"|...>; nav kbd-btns render as
-// <a href> (native navigation, right-click-open-tab works).
-document.addEventListener("click", (e) => {
-  const intent = e.target.closest("button[data-intent]");
-  if (intent) move(intent.dataset.intent);
+// Move impulses (h/j/k/l/u). Registered only on /play.
+addEventListener("keydown", (e) => {
+  if (!isPlay || document.body.dataset.conn === "down") return;
+  const dir = keymap[e.key] || keymap[(e.key + "").toLowerCase()];
+  const intent = dir || (e.key === "u" ? "undo" : "");
+  if (!intent) return;
+  move(intent);
+  e.preventDefault();
 });
 
-
-
 // Pointer swipe: detect a directional gesture on the board and dispatch
-// a move on release. No tilt / glow during drag; the edge-line pending
-// indicator is wired through move() -> #board-wrap[data-pending].
+// a move on release.
 const SWIPE_THRESHOLD = 30;
 let swipeStart = null;
 addEventListener("pointerdown", (e) => {
+  if (!isPlay) return;
   swipeStart = e.target.closest(".board") ? [e.clientX, e.clientY] : null;
 });
 addEventListener("pointerup", (e) => {
   if (!swipeStart) return;
-  const dx = e.clientX - swipeStart[0];
-  const dy = e.clientY - swipeStart[1];
+  const dx = e.clientX - swipeStart[0], dy = e.clientY - swipeStart[1];
   swipeStart = null;
   if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return;
-  const dir = Math.abs(dx) > Math.abs(dy)
-    ? (dx > 0 ? "l" : "h")
-    : (dy > 0 ? "j" : "k");
-  move(dir);
+  move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "l" : "h") : (dy > 0 ? "j" : "k"));
 });
 
 }
@@ -247,35 +166,6 @@ function updateActiveLabels() {
 setInterval(updateActiveLabels, 5000);
 updateActiveLabels();
 
-const splashSlider = document.querySelector("#splash-slider");
-const splashCounter = document.querySelector("#splash-counter");
-if (splashSlider && splashCounter) {
-  const seekUrl = splashSlider.dataset.seekUrl;
-  const tabId = splashSlider.dataset.tabId;
-  const maxPos = Number.parseInt(splashSlider.dataset.maxPos || "0", 10);
-  let pos = Number.parseInt(splashSlider.dataset.startPos || "0", 10);
-  const paint = () => {
-    splashSlider.setAttribute("value", String(pos));
-    splashCounter.textContent = `move: ${pos} of ${maxPos}`;
-  };
-  const postSeek = () => fetch(seekUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ pos, tabId }),
-  }).catch(() => {});
-  splashSlider.addEventListener("scrub", (e) => {
-    pos = e.detail.value;
-    paint();
-  });
-  splashSlider.addEventListener("scrub-end", () => postSeek());
-  setInterval(() => {
-    pos = maxPos > 0 ? (pos + 1) % (maxPos + 1) : 0;
-    paint();
-    postSeek();
-  }, 1200);
-  paint();
-}
-
 // Splash audio toggle: [ p ] kbd-btn next to the splash credit. Click
 // the button or press the "p" key to toggle play/pause. aria-pressed
 // reflects state so CSS can style the kbd-btn while playing.
@@ -283,45 +173,28 @@ const audioToggle = document.querySelector(".audio-toggle");
 const splashAudio = document.querySelector("#splash-audio");
 if (audioToggle && splashAudio) {
   let seeded = false;
-  const toggleAudio = (e) => {
-    if (e) e.preventDefault();
-    if (splashAudio.paused) {
-      // Seed first play 48s in -- past the long ambient intro on the
-      // mobygratis track. Subsequent toggles keep their position.
-      if (!seeded) {
-        splashAudio.currentTime = 48;
-        seeded = true;
-      }
-      splashAudio.play();
-    } else {
-      splashAudio.pause();
-    }
-  };
-  audioToggle.addEventListener("click", toggleAudio);
-  const sync = () => {
-    const playing = !splashAudio.paused;
+  const sync = (playing = !splashAudio.paused) => {
     audioToggle.setAttribute("aria-pressed", playing ? "true" : "false");
     audioToggle.setAttribute("aria-label", playing ? "pause audio" : "play audio");
   };
+  const toggleAudio = (e) => {
+    e?.preventDefault();
+    if (!splashAudio.paused) return splashAudio.pause();
+    if (!seeded) splashAudio.currentTime = 48, seeded = true;
+    splashAudio.play();
+  };
+  audioToggle.addEventListener("click", toggleAudio);
   sync();
   splashAudio.addEventListener("play", sync);
   splashAudio.addEventListener("pause", sync);
   splashAudio.addEventListener("ended", sync);
   document.addEventListener("keydown", (e) => {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key === "p" || e.key === "P") {
-      e.preventDefault();
-      toggleAudio();
-    }
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.key !== "p" && e.key !== "P")) return;
+    e.preventDefault();
+    toggleAudio();
   });
-  // Each splash-slider drag-release jumps the audio to a random spot
-  // when playing -- ties the soundtrack mood to the user-driven scrub.
-  // The <scrub-knob> WC emits `scrub-end` on pointer release (matches
-  // the role the native `change` event used to play here).
   document.querySelector("#splash-slider")?.addEventListener("scrub-end", () => {
-    if (splashAudio.paused) return;
-    if (Number.isFinite(splashAudio.duration) && splashAudio.duration > 0) {
-      splashAudio.currentTime = Math.random() * splashAudio.duration;
-    }
+    if (splashAudio.paused || !Number.isFinite(splashAudio.duration) || splashAudio.duration <= 0) return;
+    splashAudio.currentTime = Math.random() * splashAudio.duration;
   });
 }

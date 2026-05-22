@@ -80,7 +80,7 @@ let notes = source notes/serve.nu
       # the frame meta -- the snapshot-actor compares user_id against
       # the game's owner and silently drops mismatches. Anonymous
       # requests (no session) are rejected at the HTTP layer.
-      let signals = $in | from dmax-signals $req
+      let signals = $in | from dm-signals $req
       let game_id = $signals | get gameId? | default ""
       let intent = $signals | get intent? | default ""
       let req_id = $signals | get reqId? | default ""
@@ -125,7 +125,7 @@ let notes = source notes/serve.nu
     (route {method: GET path-matches: "/sse/splash/:tabId"} {|req ctx|
       # Per-tab reader: subscribe to bus.splash.seek.<tabId> and emit a
       # board + pos-signal patch per frame. The cadence lives in the
-      # client (the slider's data-on:interval auto-tick and the
+      # client (the slider's autoplay tick and the
       # scrub-end post), so each tab drives its own queue and only sees
       # its own seeks. Without per-tab scoping, N open tabs all post
       # into a shared topic at 1.2s each, racing $pos to chaos.
@@ -144,26 +144,26 @@ let notes = source notes/serve.nu
             let pos = ((($f.meta? | default {} | get pos? | default 0) | into int) mod $n)
             let state = $states | get $pos
             # WC variant: ship the state as a signal; <game-board> picks
-            # it up via data-attr:state and runs its own animation. The
+            # it up via data-m-ex:.state^jsos and runs its own animation. The
             # counter is signal-bound on the client side (data-text on
             # $pos), so we just need to push the pos number here. Strip
             # per-tile animation hints (spawned / merged / ghosts) from
             # the wire payload; the WC diffs by id.
             let board = $state | state-for-wc
             {splashState: $board, splashPos: $pos}
-            | to dmax-patch-signals
+            | to dm-signals
           }
         | to sse
       }
     })
 
     (route {method: POST path: "/splash/seek"} {|req ctx|
-      # The splash cadence -- both auto-tick (data-on-interval) and
-      # the scrub-end commit -- posts here. Datastar serializes all
-      # signals into the body; we pluck pos + tabId. Each tab's posts
+      # The splash cadence -- both auto-tick and
+      # the scrub-end commit -- posts here. The client posts pos +
+      # tabId; each tab's posts
       # land on its own bus topic so a single tab's autoplay can't
       # disturb another tab's reader.
-      let signals = $in | from dmax-signals $req
+      let signals = $in | from dm-signals $req
       let pos = $signals | get pos? | default 0 | into int
       let tab_id = $signals | get tabId? | default ""
       if ($tab_id | is-empty) {
@@ -224,7 +224,7 @@ let notes = source notes/serve.nu
             let signal_patch = ({
               games: {$changed_id: ($state | state-for-wc)}
               meta:  {$changed_id: {playedMs: $played_ms}}
-            } | to dmax-patch-signals)
+            } | to dm-signals)
             # Structural change only fires the morph: a brand-new card
             # has to appear in the DOM, signals alone can't add an
             # element. Existing-game snapshot updates skip the morph
@@ -232,7 +232,7 @@ let notes = source notes/serve.nu
             # so the WC's animation isn't disturbed.
             if $is_new_card {
               let html_patch = (render-games-list-from-data $req $new_data
-                                | to dmax-patch-elements --selector ".games-list" --id (random uuid))
+                                | to dm-elements --selector ".games-list" --id (random uuid))
               {out: [$signal_patch, $html_patch], next: $new_data}
             } else {
               {out: [$signal_patch], next: $new_data}
@@ -307,7 +307,7 @@ let notes = source notes/serve.nu
       let splash_n = [($all_states | length) 1] | math max
       # Per-tab id so this page's splash autoplay + seeks don't leak
       # into other open tabs. Threaded through both the SSE URL path
-      # and the @post body (Datastar auto-serializes all signals).
+      # and the splash seek POST body.
       let tab_id = random uuid
       let initial_state = if ($all_states | is-empty) {
         $fallback_state
@@ -324,7 +324,10 @@ let notes = source notes/serve.nu
         # id) flow into descendants regardless of grouping.
         (SECTION {
           class: "hero"
-          "data-m-get^sse^retry.100^open.sseOpen^close.sseClose^err.sseError@_init": ("'" + ($req | href $"/sse/splash/($tab_id)") + "'")
+          "data-m-get^sse^retry.100^stat.sse@_init": ("'" + ($req | href $"/sse/splash/($tab_id)") + "'")
+          "data-m-post^json@splash-seek^notimmediate+splash-seek^spread": ("'" + ($req | href "/splash/seek") + "'")
+          "data-m-ex:splash-pos@_interval.1200": "dm.splashN > 1 ? ((dm.splashPos || 0) + 1) % dm.splashN : 0"
+          "data-m-ex:splash-seek@_interval.1200": "{ pos: dm.splashN > 1 ? ((dm.splashPos || 0) + 1) % dm.splashN : 0, tabId: dm.tabId, reqId: crypto.randomUUID() }"
           # Seed signals the splash board needs on first paint. SSE
           # patches overwrite splashState/splashPos as the per-tab
           # bus.splash.seek.<tabId> frames arrive.
@@ -332,10 +335,9 @@ let notes = source notes/serve.nu
             splashState: ($initial_state | state-for-wc)
             splashPos: $start_pos
             splashN: $splash_n
+            splashSeek: null
             tabId: $tab_id
-            sseOpen: false
-            sseClose: false
-            sseError: ""
+            sse: {}
           } | to json --raw)
         }
           (H2 "2048, in Nushell!")
@@ -360,22 +362,20 @@ let notes = source notes/serve.nu
                 (P "best on the site to date"))
               (render-tag "game-board" {id: "splash-board" "data-m-ex:.state^jsos@splash-state": ""})
               (DIV {class: "splash-progress"}
-                # data-attr:value pushes $pos into the WC; the WC emits
+                # data-m-ex:.value pushes $pos into the WC; the WC emits
                 # `scrub` on each integer-frame delta during pointer-lock
-                # drag and `scrub-end` on release. The debounced scrub
-                # handler updates the signal and posts. `n` is the wrap
-                # modulus for the auto-tick -- clamped to >=1 (see
+                # drag and `scrub-end` on release. dmax updates the
+                # signal and posts. `n` is the wrap modulus for the
+                # auto-tick -- clamped to >=1 (see
                 # $splash_n above) so the empty-store dev/preview case
                 # can't blow up the autoplay into NaN-land.
                 (render-tag "scrub-knob" {
                   id: "splash-slider"
                   class: "splash-slider"
                   max: (($splash_n - 1) | into string)
-                  "data-seek-url": ($req | href "/splash/seek")
-                  "data-tab-id": $tab_id
-                  "data-start-pos": ($start_pos | into string)
-                  "data-max-pos": (($splash_n - 1) | into string)
                   "data-m-ex:.value@splash-pos": "'' + val"
+                  "data-m-ex:splash-pos@.scrub": "val"
+                  "data-m-ex:splash-seek@.scrub-end": "{ pos: dm.splashPos, tabId: dm.tabId, reqId: crypto.randomUUID() }"
                 })
                 (SPAN {
                   id: "splash-counter"
@@ -398,7 +398,7 @@ let notes = source notes/serve.nu
       ] | layout $req $REV $DMAX_JS_PATH
             --title "nu2048"
             --og-image $og_image
-            --og-description "Event-sourced 2048 on http-nu: cross.stream snapshots, Datastar SSE, encapsulated board web component."
+            --og-description "Event-sourced 2048 on http-nu: cross.stream snapshots, dmax SSE, encapsulated board web component."
             --body-class "splash"
             --sse true)
     })
@@ -413,7 +413,7 @@ let notes = source notes/serve.nu
         try { .cat -T $"player.($session.user_id).games" | reverse } catch { [] }
       }
       # Two nested signals keyed by game id. Each card binds via
-      # data-attr to $games[<id>] (WC board state) and $meta[<id>]
+      # data-m-ex writes $games[<id>] (WC board state) and $meta[<id>]
       # (overlay timestamp + status badge). Live SSE patches merge
       # per-game updates into both signals; no HTML re-render needed
       # for snapshot changes.
@@ -446,8 +446,8 @@ let notes = source notes/serve.nu
             --sse ($session != null)
             --body-attrs (if $session == null { {} } else {
               {
-                "data-m-si": ({games: $games_signal, meta: $meta_signal, sseOpen: false, sseClose: false, sseError: ""} | to json --raw)
-                "data-m-get^sse^retry.1000^open.sseOpen^close.sseClose^err.sseError@_init": ("'" + ($req | href "/sse/games") + "'")
+                "data-m-si": ({games: $games_signal, meta: $meta_signal, sse: {}} | to json --raw)
+                "data-m-get^sse^retry.1000^stat.sse@_init": ("'" + ($req | href "/sse/games") + "'")
               }
             }))
       if $session == null { $body } else { $body | session-cookies set $session }
@@ -458,7 +458,7 @@ let notes = source notes/serve.nu
       # board + score + state badge. Renders the <game-board> WC and
       # subscribes to /sse-wc/<game_id> which patches $boardState,
       # $score, and $gameStatus signals. The WC observes its `state`
-      # attribute (mirrored from $boardState via data-attr:state) and
+      # attribute (mirrored from $boardState via data-m-ex:.state^jsos) and
       # owns the 3-phase slide/merge/spawn animation internally.
       let game_id = $ctx.game_id
       let owner_frame = try { .get $game_id } catch { null }
@@ -488,8 +488,8 @@ let notes = source notes/serve.nu
               (DIV {class: "board-controls"} (render-score 0))
               (DIV {
                 class: "column"
-                "data-m-si": "{boardState: {tiles: [], gameOver: false}, score: 0, gameStatus: '', lastReqId: '', sseOpen: false, sseClose: false, sseError: ''}"
-                "data-m-get^sse^retry.100^open.sseOpen^close.sseClose^err.sseError@_init": ("'" + ($req | href $"/sse-wc/($game_id)") + "'")
+                "data-m-si": "{boardState: {tiles: [], gameOver: false}, score: 0, gameStatus: '', lastReqId: '', sse: {}}"
+                "data-m-get^sse^retry.100^stat.sse@_init": ("'" + ($req | href $"/sse-wc/($game_id)") + "'")
               }
                 (DIV {id: "board-wrap"}
                   (render-tag "game-board" {"data-m-ex:.state^jsos@board-state": ""})))))
@@ -566,14 +566,6 @@ let notes = source notes/serve.nu
       let game_id_short = $game_id | str substring 0..7
       ([
         (DIV {class: "page"}
-          # The SSE pipeline emits a $lastReqId signal patch for every
-          # move (no-op echo or state-changing snapshot). This effect
-          # bridges that signal into window.onAck (script.js), which
-          # clears the pending edge-line + records the RTT readout
-          # iff the reqId matches the pending probe. data-on-signal-
-          # patch only fires on signal patches (not on mount), so the
-          # deferred-script-load timing is safe.
-          (DIV {"data-m-ex:.dataset.lastReqId@last-req-id": "window.onAck(val); return val" hidden: ""})
           # Breadcrumb header: left = path with shortcuts adjacent to
           # their link targets ([esc] sits next to "past games" because
           # esc is its keyboard shortcut). Right = top-level actions.
@@ -597,7 +589,7 @@ let notes = source notes/serve.nu
             (DIV {class: "board-controls"} (render-score 0))
             (DIV {
               class: "column"
-              "data-m-get^sse^retry.100^open.sseOpen^close.sseClose^err.sseError@_init": ("'" + ($req | href $"/sse-wc/($game_id)") + "'")
+              "data-m-get^sse^retry.100^stat.sse@_init": ("'" + ($req | href $"/sse-wc/($game_id)") + "'")
             }
               # #board-wrap is the target for the data-pending edge-
               # line indicator script.js sets on keydown (cleared when
@@ -606,41 +598,35 @@ let notes = source notes/serve.nu
               # inside its shadow DOM.
               (DIV {id: "board-wrap"}
                 (render-tag "game-board" {"data-m-ex:.state^jsos@board-state": ""})))
-            # Help panel: each key is a real button that triggers the
-            # move via the existing [data-intent] click delegate in
-            # script.js.
+            # Help panel: each key is a real button that writes a
+            # move command signal; dmax posts it declaratively.
             (ASIDE {class: "help"}
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "left")
-                (kbd-btn "h" --intent "h") (kbd-btn "←" --intent "h"))
+                (kbd-btn "h" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'h', reqId: crypto.randomUUID() }"}) (kbd-btn "←" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'h', reqId: crypto.randomUUID() }"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "down")
-                (kbd-btn "j" --intent "j") (kbd-btn "↓" --intent "j"))
+                (kbd-btn "j" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'j', reqId: crypto.randomUUID() }"}) (kbd-btn "↓" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'j', reqId: crypto.randomUUID() }"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "up")
-                (kbd-btn "k" --intent "k") (kbd-btn "↑" --intent "k"))
+                (kbd-btn "k" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'k', reqId: crypto.randomUUID() }"}) (kbd-btn "↑" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'k', reqId: crypto.randomUUID() }"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "right")
-                (kbd-btn "l" --intent "l") (kbd-btn "→" --intent "l"))
+                (kbd-btn "l" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'l', reqId: crypto.randomUUID() }"}) (kbd-btn "→" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'l', reqId: crypto.randomUUID() }"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "undo")
-                (kbd-btn "u" --intent "undo")
+                (kbd-btn "u" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'undo', reqId: crypto.randomUUID() }"})
                 (SPAN {}))))
         )
       ] | layout $req $REV $DMAX_JS_PATH
             --title "nu2048"
             --og-image $og_image
-            --og-description "Event-sourced 2048 on http-nu: cross.stream snapshots, Datastar SSE, encapsulated board web component."
+            --og-description "Event-sourced 2048 on http-nu: cross.stream snapshots, dmax SSE, encapsulated board web component."
             --body-class "play"
             --sse true
             --body-attrs {
-              "data-player-id": $player_id
-              "data-game-id": $game_id
-              "data-move-url": ($req | href "/move")
-              "data-m-si": $"{playerId: '($player_id)', gameId: '($game_id)', score: 0, lastReqId: '', gameStatus: '', boardState: {tiles: [], gameOver: false}, sseOpen: false, sseClose: false, sseError: ''}"
-              "data-m-ex:.dataset.sseOpen@sse-open": "val ? '1' : '0'"
-              "data-m-ex:.dataset.sseClose@sse-close": "val ? '1' : '0'"
-              "data-m-ex:.dataset.sseError@sse-error": "'' + (val || '')"
+              "data-m-si": $"{playerId: '($player_id)', gameId: '($game_id)', score: 0, lastReqId: '', gameStatus: '', boardState: {tiles: [], gameOver: false}, sse: {}, moveCmd: null}"
+              "data-m-post^json^stat.move-req@move-cmd^notimmediate+move-cmd^spread": ("'" + ($req | href "/move") + "'")
             }
         | session-cookies set $session)
       }

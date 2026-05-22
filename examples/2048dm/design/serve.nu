@@ -265,58 +265,58 @@ def render-stories [slug: string]: nothing -> list {
     ]
     "board" => [
       (SECTION {class: "story"
-                "data-signals": $"{boardState: ($WC_STATES.empty | to json --raw)}"}
+                "data-m-si": $"{boardState: ($WC_STATES.empty | to json --raw)}"}
         (P {class: "label"} "click setup then play. the WC diffs by tile id and runs slide -> merge-pop -> spawn-in. switching scenarios resets ids so consumed tiles fade in place (no merge target).")
         (DIV {class: "wc-playground"}
           (DIV {class: "wc-board"}
-            (render-tag "game-board" {"data-attr:state": "JSON.stringify($boardState)"}))
+            (render-tag "game-board" {"data-m-ex:.state^jsos@board-state": ""}))
           (DIV {class: "wc-controls"}
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "spawn -- two tiles appear on an empty board")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.empty | to json --raw)"} "setup")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.two | to json --raw)"} "play"))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.empty | to json --raw))"} "setup")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.two | to json --raw))"} "play"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "slide -- one tile travels across an empty row")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.two | to json --raw)"} "setup")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.slide | to json --raw)"} "play"))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.two | to json --raw))"} "setup")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.slide | to json --raw))"} "play"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "merge -- two 2s slide together, double, pop")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.merge_pre | to json --raw)"} "setup")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.merge_post | to json --raw)"} "play"))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.merge_pre | to json --raw))"} "setup")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.merge_post | to json --raw))"} "play"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "chain -- four 2s in a row become two 4s")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.chain_pre | to json --raw)"} "setup")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.chain_post | to json --raw)"} "play"))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.chain_pre | to json --raw))"} "setup")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.chain_post | to json --raw))"} "play"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "move -- slide-left over a populated board: one merge, three pure slides, one spawn. all three phases on one transition.")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.move_pre | to json --raw)"} "setup")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.move_post | to json --raw)"} "play"))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.move_pre | to json --raw))"} "setup")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.move_post | to json --raw))"} "play"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "big board -- palette + font-size ramp across all tile values")
-              (BUTTON {class: "wc-btn" "data-on:click": $"$boardState = ($WC_STATES.empty | to json --raw)"} "clear")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$boardState = ($WC_STATES.big | to json --raw)"} "fill")))))
+              (BUTTON {class: "wc-btn" "data-m-ex:board-state@.click": $"(($WC_STATES.empty | to json --raw))"} "clear")
+              (BUTTON {class: "wc-btn primary" "data-m-ex:board-state@.click": $"(($WC_STATES.big | to json --raw))"} "fill")))))
     ]
     "badges" => [
       # Three static scenarios -- each its own WC instance so the
       # `hasWon` flag inside the component starts fresh. State is fed
-      # via a section-scoped Datastar signal whose initial value is
+      # via a section-scoped dmax signal whose initial value is
       # the desired snapshot; the WC mounts, applies, and paints the
       # right badges in one shot.
       (SECTION {class: "story"
-                "data-signals": $"{badgeWin: ($BADGE_STATES.win | to json --raw)}"}
+                "data-m-si": $"{badgeWin: ($BADGE_STATES.win | to json --raw)}"}
         (P {class: "label"} "during play -- 'you win' alone (just crossed 2048; will auto-hide after 3 more moves).")
         (DIV {class: "badge-board"}
-          (render-tag "game-board" {"data-attr:state": "JSON.stringify($badgeWin)"})))
+          (render-tag "game-board" {"data-m-ex:.state^jsos@badge-win": ""})))
       (SECTION {class: "story"
-                "data-signals": $"{badgeLost: ($BADGE_STATES.lost_over | to json --raw)}"}
+                "data-m-si": $"{badgeLost: ($BADGE_STATES.lost_over | to json --raw)}"}
         (P {class: "label"} "endgame -- 'game over' (neutral) + 'you lost' (never reached 2048).")
         (DIV {class: "badge-board"}
-          (render-tag "game-board" {"data-attr:state": "JSON.stringify($badgeLost)"})))
+          (render-tag "game-board" {"data-m-ex:.state^jsos@badge-lost": ""})))
       (SECTION {class: "story"
-                "data-signals": $"{badgeWinOver: ($BADGE_STATES.win_over | to json --raw)}"}
+                "data-m-si": $"{badgeWinOver: ($BADGE_STATES.win_over | to json --raw)}"}
         (P {class: "label"} "endgame -- 'game over' + 'you win' (won, then ran out of moves).")
         (DIV {class: "badge-board"}
-          (render-tag "game-board" {"data-attr:state": "JSON.stringify($badgeWinOver)"})))
+          (render-tag "game-board" {"data-m-ex:.state^jsos@badge-win-over": ""})))
 
       # Interactive walkthrough: one WC, six buttons. Each button
       # writes a distinct snapshot so the WC's #apply runs and the
@@ -324,30 +324,30 @@ def render-stories [slug: string]: nothing -> list {
       # be clicked top-to-bottom for the demo to make sense; the WC's
       # `hasWon` flag is sticky, so reload the page to start over.
       (SECTION {class: "story"
-                "data-signals": $"{badgeWalk: ($BADGE_STATES.in_play | to json --raw)}"}
+                "data-m-si": $"{badgeWalk: ($BADGE_STATES.in_play | to json --raw)}"}
         (P {class: "label"} "post-win hide -- click the scenarios top to bottom. WC state is per-instance and sticky; reload the page to restart.")
         (DIV {class: "wc-playground"}
           (DIV {class: "wc-board"}
-            (render-tag "game-board" {"data-attr:state": "JSON.stringify($badgeWalk)"}))
+            (render-tag "game-board" {"data-m-ex:.state^jsos@badge-walk": ""}))
           (DIV {class: "wc-controls"}
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "start -- mid-game without a 2048. no badges.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.in_play | to json --raw)"} "setup"))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.in_play | to json --raw))"} "setup"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "win -- a 2048 lands on the board. 'you win!' appears.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.win | to json --raw)"} "win"))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.win | to json --raw))"} "win"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "+1 move post-win -- badge still visible.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.win_m1 | to json --raw)"} "move 1"))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.win_m1 | to json --raw))"} "move 1"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "+2 moves post-win -- badge still visible.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.win_m2 | to json --raw)"} "move 2"))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.win_m2 | to json --raw))"} "move 2"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "+3 moves post-win -- badge hides; play continues badge-free.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.win_m3 | to json --raw)"} "move 3"))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.win_m3 | to json --raw))"} "move 3"))
             (DIV {class: "wc-scenario"}
               (P {class: "wc-scenario-label"} "no moves left -- both badges show: 'game over' + 'you win'.")
-              (BUTTON {class: "wc-btn primary" "data-on:click": $"$badgeWalk = ($BADGE_STATES.win_over | to json --raw)"} "game over")))))
+              (BUTTON {class: "wc-btn primary" "data-m-ex:badge-walk@.click": $"(($BADGE_STATES.win_over | to json --raw))"} "game over")))))
     ]
     "markdown" => [
       (story "rendered via .md, wrapped in .prose (same path as /notes pages)" [
@@ -367,7 +367,7 @@ def story [label: string children: list]: nothing -> record {
 
 # Page chrome. Two columns: sidebar with the catalog, main with the
 # focused stories. Sidebar entries get .current on the active slug.
-# Goes through the shared `layout` so Datastar (and the site header /
+# Goes through the shared `layout` so dmax (and the site header /
 # footer) are present on every design page.
 def design-page [req: record current: string]: nothing -> string {
   let stories = render-stories $current

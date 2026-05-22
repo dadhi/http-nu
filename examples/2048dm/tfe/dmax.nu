@@ -1,7 +1,6 @@
-# DMAX SSE helpers for Nushell.
-# Mirrors the small subset of the Datastar helpers used by this example.
+# dmax SSE helpers for Nushell.
 
-export def "to dmax-patch-elements" [
+export def "to dm-elements" [
   --selector: string
   --mode: string = "outer"
   --namespace: string
@@ -19,13 +18,13 @@ export def "to dmax-patch-elements" [
     (if $selector != null { $"selector ($selector)" })
     (if $mode != "outer" { $"mode ($mode)" })
     (if $namespace != null { $"namespace ($namespace)" })
-    ...($html | lines | each { $"dmaxElements ($in)" })
+    ...($html | lines | each { $"dmElements ($in)" })
   ] | compact
 
-  {event: "dmax-patch-elements" data: $data id: $id retry: $retry_duration}
+  {event: "dm-elements" data: $data id: $id retry: $retry_duration}
 }
 
-export def "to dmax-patch-signals" [
+export def "to dm-signals" [
   --only-if-missing
   --id: string
   --retry-duration: int
@@ -37,13 +36,13 @@ export def "to dmax-patch-signals" [
   }
   let data = [
     (if $only_if_missing { "onlyIfMissing true" })
-    ...($json_str | lines | each { $"dmaxSignals ($in)" })
+    ...($json_str | lines | each { $"dmSignals ($in)" })
   ] | compact
 
-  {event: "dmax-patch-signals" data: $data id: $id retry: $retry_duration}
+  {event: "dm-signals" data: $data id: $id retry: $retry_duration}
 }
 
-export def "from dmax-signals" [req: record]: string -> record {
+export def "from dm-signals" [req: record]: string -> record {
   match $req.method {
     "GET" | "DELETE" => (try { $req.query.dmax? | default "{}" | from json } catch { {} })
     _ => (try { $in | from json } catch { {} })

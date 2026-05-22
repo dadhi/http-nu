@@ -205,7 +205,7 @@ export def impulses-to-states [initial: record] {
     }
     if $frame.topic == "xs.pulse" {
       # SSE keepalive -- emit a pulse marker; downstream stages turn it into
-      # a dmax-patch-signals no-op so the client sees a sign of life.
+      # a dm-signals no-op so the client sees a sign of life.
       return {out: [{pulse: true}], next: $s}
     }
     if $frame.topic == $s.games_topic {

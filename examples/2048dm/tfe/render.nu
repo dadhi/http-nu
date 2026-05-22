@@ -72,9 +72,9 @@ export def breadcrumb [
 #
 # Renders <a class="kbd-btn"> when --href is set (so right-click-open-tab
 # works) and <button class="kbd-btn"> otherwise. Behavior carriers:
-#   --intent "h"|"undo"|...  fires move(intent) via script.js delegate
+#   --intent "h"|"undo"|...  legacy script-side move delegate
 #   --href   "/new"|"/"|...  the <a>'s real href
-#   neither                  caller wires a custom handler via --class
+#   --attrs  {...}            extra attrs for dmax/native wiring
 #
 # --variant "primary" picks the orange CTA palette (splash play-now).
 # Default variant is subdued; both flip to their accent on :hover and
@@ -89,6 +89,7 @@ export def kbd-btn [
   --variant: string = "default"   # "default" | "primary"
   --aria-label: string = ""
   --style: string = ""            # inline per-instance tweak (margin, etc.)
+  --attrs: record = {}
 ]: nothing -> record {
   let bracketed = [
     (SPAN {class: "bracket"} "[")
@@ -102,7 +103,7 @@ export def kbd-btn [
   let variant_class = if ($variant == "primary") { "primary" } else { "" }
   let cls = ["kbd-btn" $variant_class $class] | where {|c| ($c | str trim | is-not-empty)} | str join " "
   let elem = if ($href | is-not-empty) { "A" } else { "BUTTON" }
-  mut attrs = {class: $cls}
+  mut attrs = ($attrs | merge {class: $cls})
   if $elem == "BUTTON" { $attrs = ($attrs | upsert "type" "button") }
   if ($intent | is-not-empty) { $attrs = ($attrs | upsert "data-intent" $intent) }
   if ($href | is-not-empty)   { $attrs = ($attrs | upsert "href" $href) }

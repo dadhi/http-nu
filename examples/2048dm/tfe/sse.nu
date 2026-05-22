@@ -122,7 +122,7 @@ export def html-to-patches [] {
     if ('event' in $item) {
       $item
     } else {
-      $item.signals | to dmax-patch-signals
+      $item.signals | to dm-signals
     }
   }
 }

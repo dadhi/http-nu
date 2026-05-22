@@ -116,9 +116,9 @@ sophistication comes out of a few hundred lines of shell script.
   closures; the request and response live in the pipeline.
 - **cross.stream (xs)** -- an append-only event store. Every move,
   every snapshot, every player session is a frame.
-- **Datastar** -- server-sent events drive the UI. The server pushes
-  HTML fragments; the client morphs them in place via morphdom.
-  View-transitions animate tile slides at the browser level.
+- **dmax** -- server-sent events drive the UI. The server pushes
+  signal and element patches; the client applies them and morphs HTML
+  in place. View-transitions animate tile slides at the browser level.
 
 **The actor.** A snapshot-actor watches the stream. When a
 `game.<id>.move` frame lands, it resumes the game state from prior
@@ -128,9 +128,9 @@ snapshots; every reader pulls them by topic.
 
 **The pipeline.** The /play page subscribes to `game.<id>.*` via SSE.
 The server tails the topic, threshold-gates pulses, renders state to
-HTML, wraps each render in a Datastar patch event, and writes the SSE
-stream. Nu pipelines all the way down -- `.cat --follow | pulse-keepalive
-| frames-to-states | threshold-gate-states | states-to-html | html-to-patches | to sse`.
+signal patches, and writes the SSE stream. Nu pipelines all the way
+down -- `.cat --follow | pulse-keepalive | frames-to-states |
+threshold-gate-states | states-to-wc-signals | html-to-patches | to sse`.
 
 **The insight.** Spectating a live game uses the same pipeline as
 playing one. There's no separate "watch mode" -- /sse/&lt;id&gt; just

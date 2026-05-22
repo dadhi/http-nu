@@ -299,7 +299,7 @@ assert (($r14 | first | get req_id) == "probe-42") "snapshot carries req_id"
 
 # 15. Pre-converted SSE event records (e.g. from pulse-keepalive) flow
 #     through unchanged so downstream stages can dispatch by `event`.
-let evt = {event: "dmax-patch-signals" data: ["dmaxSignals {}"]}
+let evt = {event: "dm-signals" data: ["dmSignals {}"]}
 let r15 = drive-frames [$evt]
 assert (($r15 | first) == $evt) "event records pass through unchanged"
 

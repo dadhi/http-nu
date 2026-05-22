@@ -1,8 +1,8 @@
 // <game-board state='{"tiles":[{id,r,c,value,spawned,merged}],"ghosts":[{id,r,c,value}],"gameOver":bool}'>
 //
 // Fully encapsulated 4x4 board. State comes in as a JSON string on the
-// `state` attribute; Datastar's `data-attr:state="JSON.stringify($sig)"`
-// keeps it in sync with a signal. Each snapshot is self-describing:
+// `state` attribute; dmax keeps it in sync via
+// `data-m-ex:.state^jsos@board-state`. Each snapshot is self-describing:
 //
 //   tiles[].spawned   true => phase 3 spawn-in (no slide)
 //   tiles[].merged    true => phase 2 pop after slide (value already
@@ -167,11 +167,11 @@ class GameBoard extends HTMLElement {
   attributeChangedCallback(name, oldVal, newVal) {
     if (name !== "state") return;
     if (newVal == null) return;
-    // Datastar's data-attr can write setAttribute with the unchanged
+    // dmax can write setAttribute with the unchanged
     // value after a DOM morph (e.g. /my/games re-renders the card
     // chrome around the WC; morphdom strips the runtime `state`
     // attribute that wasn't in the server-rendered HTML, then
-    // Datastar's apply pass restores it). Both `oldVal === newVal`
+    // dmax's apply pass restores it). Both `oldVal === newVal`
     // and "stripped then restored" paths would otherwise cancel an
     // in-flight slide/merge by calling #apply() with no real diff.
     // Track the last-applied JSON so any duplicate is a no-op.

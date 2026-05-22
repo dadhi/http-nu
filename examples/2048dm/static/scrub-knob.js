@@ -15,8 +15,8 @@
 // intrusive in Safari. Capture trades infinite drag range for visible
 // cursor + no banner -- long scrubs need a lift-and-redrag.
 //
-// Signal-in: caller sets `value` and `max` attributes (Datastar's
-// `data-attr:value="$pos"` works). Signal-out: caller listens for the
+// Signal-in: caller sets `value` and `max` attributes (`data-m-ex:.value@splash-pos`
+// works). Signal-out: caller listens for the
 // `scrub` (continuous) and `scrub-end` (pointer release) events and
 // updates the signal in the handler.
 
@@ -96,7 +96,7 @@ class ScrubKnob extends HTMLElement {
 
   attributeChangedCallback(name, _old, val) {
     if (val == null) return;
-    // Datastar's data-attr writes JSON.stringify($sig) into the
+    // dmax writes `'' + val` into the
     // attribute, which yields the literal string "null" for NaN
     // signals (JSON has no NaN). Bail on anything not finite so a
     // transiently bad upstream value can't poison internal state.

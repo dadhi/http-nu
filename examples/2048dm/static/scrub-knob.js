@@ -69,6 +69,11 @@ const STYLES = `
 class ScrubKnob extends HTMLElement {
   static get observedAttributes() { return ["value", "max", "px-per-frame"]; }
 
+  get value() { return this.#v; }
+  set value(v) { this.setAttribute("value", '' + v); }
+  get max() { return this.#max; }
+  set max(v) { this.setAttribute("max", '' + v); }
+
   #v = 0;
   #max = 0;
   #acc = 0;

@@ -18,7 +18,7 @@ const flashRed = () => {
   document.body.classList.add("flash-red");
 };
 
-const rttEl = () => document.querySelector("#rtt");
+const rttEl = () => dmSel("#rtt");
 const tickRtt = () => {
   if (movePending == null) return;
   rttEl()?.replaceChildren(`${Math.round(performance.now() - movePending.t)}ms`);
@@ -42,7 +42,7 @@ const stopPinging = () => {
   pingPending = null;
 };
 
-const move = (intent) => dmSet('move-cmd', { playerId: dm.playerId, gameId: dm.gameId, intent, reqId: crypto.randomUUID() });
+const move = (intent) => dmSet('move-cmd', { ...dm.moveBase, intent, reqId: crypto.randomUUID() });
 
 // SSE liveness. dmax exposes grouped stream status through ^stat.sse.
 const setConn = (v) => {
@@ -76,8 +76,8 @@ addEventListener("keydown", (e) => {
 
 // Below: /play-only handlers gated on the play view.
 if (isPlay) {
-const boardWrap = document.querySelector("#board-wrap"), clrMove = () => { movePending = null; boardWrap?.removeAttribute("data-pending"); };
-dmSub('move-cmd^notimmediate', (cmd) => {
+const boardWrap = dmSel("#board-wrap"), clrMove = () => { movePending = null; boardWrap?.removeAttribute("data-pending"); };
+dmSub('move-cmd^not-immediate', (cmd) => {
   if (!cmd?.reqId) return;
   const p = { id: cmd.reqId, t: performance.now() };
   if (cmd.intent === "") return pingPending = p, clearPingTimer(), void (pingTimer = setTimeout(() => setConn("down"), PING_TIMEOUT_MS));
@@ -92,11 +92,11 @@ const ack = (slot, seed) => {
   else pingPending = null, clearPingTimer(), setConn("ok"), seed && !movePending && !rttEl()?.textContent && rttEl()?.replaceChildren(rtt);
   return 1;
 };
-dmSub('last-req-id^notimmediate', (reqId) => {
+dmSub('last-req-id^not-immediate', (reqId) => {
   if (movePending && reqId === movePending.id) return ack(movePending);
   if (pingPending && reqId === pingPending.id) ack(pingPending, 1);
 });
-dmSub('move-req^notimmediate', (s) => {
+dmSub('move-req^not-immediate', (s) => {
   if (!s?.complete || (!s.err && (!s.code || s.code < 400))) return;
   pingPending = null;
   if (movePending) clrMove();
@@ -140,37 +140,32 @@ addEventListener("pointerup", (e) => {
 
 }
 
-// Keep splash card "last played" labels current without a server round
-// trip. Each .overlay.active span carries data-played-ms = the unix
-// millisecond timestamp from the game's last-move id; we recompute the
-// relative string every few seconds. Same shape as the server's
-// last-active-from-id in render.nu.
-function relativeFromMs(ms) {
+// Keep splash/game-card "last played" labels current without a server
+// round trip. dmax now drives the timer + query fanout; this helper
+// only maps nodes to their next relative label.
+window.m2048RelativeFromMs = (ms) => {
   const diff = Math.floor((Date.now() - ms) / 1000);
   if (diff < 60) return "in play";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
   return `${Math.floor(diff / 604800)}w ago`;
-}
-function updateActiveLabels() {
-  document.querySelectorAll(".overlay.active[data-played-ms]").forEach((el) => {
+};
+window.m2048ActiveLabels = (els) => {
+  for (const el of els || []) {
     const ms = parseInt(el.dataset.playedMs, 10);
-    if (!Number.isFinite(ms)) return;
-    const next = relativeFromMs(ms);
+    if (!Number.isFinite(ms)) continue;
+    const next = window.m2048RelativeFromMs(ms);
     if (el.textContent !== next) el.textContent = next;
-  });
-}
-// Tick every 5s: fast enough to catch "in play" -> "1m ago" near the
-// minute boundary, slow enough to be cheap.
-setInterval(updateActiveLabels, 5000);
-updateActiveLabels();
+  }
+  return '';
+};
 
 // Splash audio toggle: [ p ] kbd-btn next to the splash credit. Click
 // the button or press the "p" key to toggle play/pause. aria-pressed
 // reflects state so CSS can style the kbd-btn while playing.
-const audioToggle = document.querySelector(".audio-toggle");
-const splashAudio = document.querySelector("#splash-audio");
+const audioToggle = dmSel(".audio-toggle");
+const splashAudio = dmSel("#splash-audio");
 if (audioToggle && splashAudio) {
   let seeded = false;
   const sync = (playing = !splashAudio.paused) => {
@@ -193,7 +188,7 @@ if (audioToggle && splashAudio) {
     e.preventDefault();
     toggleAudio();
   });
-  document.querySelector("#splash-slider")?.addEventListener("scrub-end", () => {
+  dmSel("#splash-slider")?.addEventListener("scrub-end", () => {
     if (splashAudio.paused || !Number.isFinite(splashAudio.duration) || splashAudio.duration <= 0) return;
     splashAudio.currentTime = Math.random() * splashAudio.duration;
   });

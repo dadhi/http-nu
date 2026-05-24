@@ -325,9 +325,9 @@ let notes = source notes/serve.nu
         (SECTION {
           class: "hero"
           "data-m-get^sse^retry.100^stat.sse@_init": ("'" + ($req | href $"/sse/splash/($tab_id)") + "'")
-          "data-m-post^json@splash-seek^notimmediate+splash-seek^spread": ("'" + ($req | href "/splash/seek") + "'")
+          "data-m-post^json@splash-seek^not-immediate+splash-seek^spread": ("'" + ($req | href "/splash/seek") + "'")
           "data-m-ex:splash-pos@_interval.1200": "dm.splashN > 1 ? ((dm.splashPos || 0) + 1) % dm.splashN : 0"
-          "data-m-ex:splash-seek@_interval.1200": "{ pos: dm.splashN > 1 ? ((dm.splashPos || 0) + 1) % dm.splashN : 0, tabId: dm.tabId, reqId: crypto.randomUUID() }"
+          "data-m-ex:splash-seek@_interval.1200": "({ ...dm.splashBase, pos: dm.splashN > 1 ? ((dm.splashPos || 0) + 1) % dm.splashN : 0, reqId: crypto.randomUUID() })"
           # Seed signals the splash board needs on first paint. SSE
           # patches overwrite splashState/splashPos as the per-tab
           # bus.splash.seek.<tabId> frames arrive.
@@ -335,6 +335,7 @@ let notes = source notes/serve.nu
             splashState: ($initial_state | state-for-wc)
             splashPos: $start_pos
             splashN: $splash_n
+            splashBase: { tabId: $tab_id }
             splashSeek: null
             tabId: $tab_id
             sse: {}
@@ -373,9 +374,9 @@ let notes = source notes/serve.nu
                   id: "splash-slider"
                   class: "splash-slider"
                   max: (($splash_n - 1) | into string)
-                  "data-m-ex:.value@splash-pos": "'' + val"
+                  "data-m-ex:.@splash-pos": "'' + val"
                   "data-m-ex:splash-pos@.scrub": "val"
-                  "data-m-ex:splash-seek@.scrub-end": "{ pos: dm.splashPos, tabId: dm.tabId, reqId: crypto.randomUUID() }"
+                  "data-m-ex:splash-seek@.scrub-end": "({ ...dm.splashBase, pos: dm.splashPos, reqId: crypto.randomUUID() })"
                 })
                 (SPAN {
                   id: "splash-counter"
@@ -603,19 +604,19 @@ let notes = source notes/serve.nu
             (ASIDE {class: "help"}
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "left")
-                (kbd-btn "h" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'h', reqId: crypto.randomUUID() }"}) (kbd-btn "←" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'h', reqId: crypto.randomUUID() }"}))
+                (kbd-btn "h" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'h', reqId: crypto.randomUUID() })"}) (kbd-btn "←" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'h', reqId: crypto.randomUUID() })"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "down")
-                (kbd-btn "j" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'j', reqId: crypto.randomUUID() }"}) (kbd-btn "↓" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'j', reqId: crypto.randomUUID() }"}))
+                (kbd-btn "j" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'j', reqId: crypto.randomUUID() })"}) (kbd-btn "↓" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'j', reqId: crypto.randomUUID() })"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "up")
-                (kbd-btn "k" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'k', reqId: crypto.randomUUID() }"}) (kbd-btn "↑" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'k', reqId: crypto.randomUUID() }"}))
+                (kbd-btn "k" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'k', reqId: crypto.randomUUID() })"}) (kbd-btn "↑" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'k', reqId: crypto.randomUUID() })"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "right")
-                (kbd-btn "l" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'l', reqId: crypto.randomUUID() }"}) (kbd-btn "→" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'l', reqId: crypto.randomUUID() }"}))
+                (kbd-btn "l" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'l', reqId: crypto.randomUUID() })"}) (kbd-btn "→" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'l', reqId: crypto.randomUUID() })"}))
               (DIV {class: "help-row"}
                 (SPAN {class: "label"} "undo")
-                (kbd-btn "u" --attrs {"data-m-ex:move-cmd@.click": "{ playerId: dm.playerId, gameId: dm.gameId, intent: 'undo', reqId: crypto.randomUUID() }"})
+                (kbd-btn "u" --attrs {"data-m-ex:move-cmd@.click": "({ ...dm.moveBase, intent: 'undo', reqId: crypto.randomUUID() })"})
                 (SPAN {}))))
         )
       ] | layout $req $REV $DMAX_JS_PATH
@@ -625,8 +626,8 @@ let notes = source notes/serve.nu
             --body-class "play"
             --sse true
             --body-attrs {
-              "data-m-si": $"{playerId: '($player_id)', gameId: '($game_id)', score: 0, lastReqId: '', gameStatus: '', boardState: {tiles: [], gameOver: false}, sse: {}, moveCmd: null}"
-              "data-m-post^json^stat.move-req@move-cmd^notimmediate+move-cmd^spread": ("'" + ($req | href "/move") + "'")
+              "data-m-si": $"{playerId: '($player_id)', gameId: '($game_id)', moveBase: {playerId: '($player_id)', gameId: '($game_id)'}, score: 0, lastReqId: '', gameStatus: '', boardState: {tiles: [], gameOver: false}, sse: {}, moveCmd: null}"
+              "data-m-post^json^stat.move-req@move-cmd^not-immediate+move-cmd^spread": ("'" + ($req | href "/move") + "'")
             }
         | session-cookies set $session)
       }

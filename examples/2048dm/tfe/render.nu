@@ -211,6 +211,7 @@ export def layout [
   let nav_attrs = {
     "data-home-href": ($req | href "/")
     "data-new-href":  ($req | href "/new")
+    "data-m-ex@_init^sel-all..overlay.active[data-played-ms]@_interval.5000^sel-all..overlay.active[data-played-ms]": "window.m2048ActiveLabels(val)"
   }
   {
     title: $title

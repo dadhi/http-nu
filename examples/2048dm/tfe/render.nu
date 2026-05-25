@@ -112,6 +112,14 @@ export def kbd-btn [
   if $elem == "A" { (A $attrs ...$inner) } else { (BUTTON $attrs ...$inner) }
 }
 
+# Thin dmax-first move button wrapper. Keeps /play help rows compact by
+# centralizing the repeated move-cmd signal write shape.
+export def move-btn [label: string intent: string]: nothing -> record {
+  kbd-btn $label --attrs {
+    "data-m-ex:move-cmd@.click": $"({ ...dm.moveBase, intent: '($intent)', reqId: crypto.randomUUID() })"
+  }
+}
+
 # Render a card from already-known state. Callers pass state straight
 # out of a snapshot frame's meta, avoiding a redundant resume-game lookup.
 # Render a SCRU128 id's embedded timestamp as a short, human-readable
@@ -148,8 +156,8 @@ export def render-card-from-state [
   #   $meta[<id>]  = {playedMs}                          -> overlay time
   # The WC's shadow DOM owns the won/over badge (derived from
   # boardState), so there's no external badge element per card.
-  let board_expr = $"(((dm.games || {})['($game_id)']) || { tiles: [], ghosts: [], gameOver: false })"
-  let played_expr = $"'' + (((((dm.meta || {})['($game_id)']) || {}).playedMs) ?? '')"
+  let board_expr = "(((dm.games || {})['" + $game_id + "']) || { tiles: [], ghosts: [], gameOver: false })"
+  let played_expr = "'' + (((((dm.meta || {})['" + $game_id + "']) || {}).playedMs) ?? '')"
   (A {id: $"card-($game_id)" class: "game-card" href: $target}
     (DIV {class: "board-wrap"}
       (render-tag "game-board" {"data-m-ex:.state^jsos@games": $board_expr dim: ""}))

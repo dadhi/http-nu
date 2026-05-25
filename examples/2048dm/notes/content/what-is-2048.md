@@ -127,9 +127,9 @@ new state in the frame's meta. The actor is the single writer for
 snapshots; every reader pulls them by topic.
 
 **The pipeline.** The /play page subscribes to `game.<id>.*` via SSE.
-The server tails the topic, threshold-gates pulses, renders state to
-signal patches, and writes the SSE stream. Nu pipelines all the way
-down -- `.cat --follow | pulse-keepalive | frames-to-states |
+The server tails the topic, threshold-gates the initial catch-up,
+renders state to signal patches, and writes the SSE stream. Nu
+pipelines all the way down -- `.cat --follow | frames-to-states |
 threshold-gate-states | states-to-wc-signals | html-to-patches | to sse`.
 
 **The insight.** Spectating a live game uses the same pipeline as

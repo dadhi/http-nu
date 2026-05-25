@@ -84,6 +84,39 @@ follow-game "03g54..." | each { reject state.tiles }
 
 `.last game.<id>.snapshot` is the canonical HEAD for a game.
 
+## Datastar vs dmax, at the implementation level
+
+Against the sibling `examples/2048` Datastar version, the dmax port is
+already a bit smaller in the files that matter most for app wiring:
+
+- `serve.nu`: `34033` -> `32091` bytes
+- `static/script.js`: `12003` -> `7486` bytes
+- `tfe/sse.nu`: `4844` -> `4820` bytes
+
+What changed:
+
+- dmax is more direct for this app's signal-shaped state flow:
+  `data-m-si` seeds state, `data-m-get^sse` opens the stream,
+  `data-m-post` sends moves, `data-m-ex` fans patches into the WC and
+  chrome.
+- the client script gets smaller because imperative fetch / ack / query
+  glue collapsed into `dmSet(...)`, `dmSub(...)`, and `dmSel(...)`.
+- the SSE pipeline itself is nearly the same size; the real difference
+  is client wiring and naming consistency, not the game/store logic.
+
+Current gaps / next improvement opportunities:
+
+- repeated declarative move-writing shapes still want more sugar; the
+  new `move-btn(...)` helper only removes server-template duplication.
+- relative-time fanout (`m2048ActiveLabels`) is still a small JS helper;
+  a built-in collection/map style helper could shrink this further.
+- splash autoplay/seek is straightforward now, but still more explicit
+  than Datastar's inline local-signal algebra; that suggests value in
+  tighter dmax local-state ergonomics, not more ad-hoc app JS.
+- performance work should focus on whole-page/full-morph paths; this app
+  is already mostly signal + WC state writes, so its hot path is less
+  about selector morphing than generic demo pages are.
+
 ## Animation
 
 Each move runs three sequential phases on one view-transition: slide,

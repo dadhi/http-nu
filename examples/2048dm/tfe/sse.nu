@@ -80,8 +80,8 @@ export def threshold-gate-states [] {
 
 # State records -> dmax signal patches for the <game-board> WC.
 #   no state          -> drop (placeholder stays put until snapshot lands)
-#   no-op move echo   -> {lastReqId}                  (the ack only)
-#   state-changing    -> {boardState, score, gameStatus, lastReqId}
+#   no-op move echo   -> {lastReqId}             (the ack only)
+#   state-changing    -> {boardState, score, lastReqId}
 # The WC diffs by tile id and runs slide -> merge-pop -> spawn-in on
 # its own, so the wire payload strips animation hints (spawned /
 # merged / ghosts) -- pure state.
@@ -99,12 +99,7 @@ export def states-to-wc-signals [] {
       let req_id = $s.req_id? | default ""
       if $changed {
         let board = $state | state-for-wc
-        # gameStatus is still derived server-side for surfaces (chrome
-        # outside the WC) that want it -- the WC itself derives the
-        # badge from boardState.gameOver + tile values.
-        let won = $state.tiles | any {|t| $t.value >= 2048 }
-        let status = if $won { "won" } else if $state.game_over { "over" } else { "" }
-        [{signals: {boardState: $board, score: $state.score, gameStatus: $status, lastReqId: $req_id}}]
+        [{signals: {boardState: $board, score: $state.score, lastReqId: $req_id}}]
       } else {
         [{signals: {lastReqId: $req_id}}]
       }

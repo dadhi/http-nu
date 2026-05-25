@@ -61,10 +61,11 @@ under discussion (e.g. the `--raw` switch). Whole blocks of code earn
 their own indent:
 
 ```
-.cat --follow --pulse 450
-| pulse-keepalive
+.cat --follow
 | frames-to-states
-| states-to-html
+| threshold-gate-states
+| states-to-wc-signals
+| html-to-patches
 | to sse
 ```
 

@@ -138,6 +138,8 @@ class GameBoard extends HTMLElement {
 
   constructor() {
     super();
+    const ownState = Object.prototype.hasOwnProperty.call(this, "state") ? this.state : null;
+    if (ownState != null) delete this.state;
     this.attachShadow({ mode: "open" });
     this.shadowRoot.innerHTML = `<style>${STYLES}</style><div class="board" part="board"></div><div class="badges"><span class="badge over"></span><span class="badge result"></span></div>`;
     this.boardEl = this.shadowRoot.querySelector(".board");
@@ -167,6 +169,7 @@ class GameBoard extends HTMLElement {
     // per subsequent apply. The win badge stays visible while < 3, then
     // hides during continued play until the game ends.
     this.movesSinceWin = -1;
+    if (ownState != null) this.state = ownState;
   }
 
   attributeChangedCallback(name, oldVal, newVal) {

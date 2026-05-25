@@ -130,6 +130,11 @@ const SPAWN_FROM = 0.4;
 
 class GameBoard extends HTMLElement {
   static get observedAttributes() { return ["state"]; }
+  get state() { return this.getAttribute("state"); }
+  set state(v) {
+    const s = typeof v === "string" ? v : JSON.stringify(v);
+    if (s !== this.getAttribute("state")) this.setAttribute("state", s);
+  }
 
   constructor() {
     super();

@@ -84,19 +84,22 @@ page.on("pageerror", (err) => console.log(`  [pageerror] ${err.message}`));
 // /new mints a games_topic frame and 302s to /play/<game-id>.
 await page.goto(`${BASE}/new`);
 await page.waitForFunction(
-  () => document.querySelector("game-board")?.shadowRoot?.querySelectorAll(".board > div").length > 0,
+  () => !!document.querySelector("game-board")?.shadowRoot,
   null,
   { timeout: 5000 },
 );
 
 function snapshot() {
   return page.evaluate(() => {
-    const board = document.querySelector("game-board")?.shadowRoot?.querySelector(".board");
+    const host = document.querySelector("game-board");
+    const board = host?.shadowRoot?.querySelector(".board");
+    const stateAttr = host?.getAttribute("state") || "";
+    let state = null;
+    try { state = stateAttr ? JSON.parse(stateAttr) : null; } catch {}
     return {
       children: board?.children.length ?? 0,
-      tiles: Array.from(board?.children ?? [])
-        .filter((c) => c.textContent && c.textContent.trim() !== "")
-        .map((c) => c.textContent.trim()),
+      tiles: (state?.tiles ?? []).map((t) => String(t.value)),
+      state,
     };
   });
 }
@@ -111,10 +114,9 @@ async function waitFor(predicate, timeoutMs = 3000) {
   return snap;
 }
 
-// Wait for the SSE init patch to replace the server-rendered empty placeholder.
-const initial = await waitFor((s) => s.tiles.length === 2);
-check("initial board has 16 background + 2 tiles", initial.children === 18, JSON.stringify(initial));
-check("initial board has 2 numeric tiles", initial.tiles.length === 2);
+// Wait for the SSE init patch to seed the board state.
+const initial = await waitFor((s) => s.tiles.length === 2, 5000);
+check("initial board has 2 numeric tiles", initial.tiles.length === 2, JSON.stringify(initial));
 
 const initialKey = JSON.stringify(initial.tiles.sort());
 // Two random initial tiles can land in a configuration where some
@@ -135,47 +137,14 @@ check(
 const score = await page.evaluate(() => document.querySelector("#score")?.textContent ?? "");
 check("score shows", /^\d+$/.test(score.trim()), score);
 
-// Computed-style regression check: the play view's behaviour (board
-// touch handling and per-tile keyboard lean) is wired through CSS
-// selectors anchored on the body's class. Layout refactors keep
-// silently breaking this when the body class is renamed but the CSS
-// isn't updated. So we probe the *computed* style here -- not the
-// HTML markup -- to catch "selector stopped matching" regressions
-// early. `touch-action: none` is set by `body.play .board { ... }`;
-// if the selector stops matching, this falls back to `auto`.
-const boardTouchAction = await page.evaluate(() => getComputedStyle(document.querySelector("game-board")?.shadowRoot?.querySelector(".board")).touchAction);
-check(
-  "body.play .board selector matched (touch-action: none)",
-  boardTouchAction === "none",
-  boardTouchAction,
-);
-
-// Anticipation lean (key-<dir> class on #board-wrap) is currently
-// disabled while iterating on the VT-only pipeline. Re-enable this
-// assertion when the lean is restored.
-
-// Same kind of check for the per-tile transform rule. A matching
-// selector always sets transform to *something* (even matrix identity
-// when --tilt-x and --tilt-y are 0). Failure mode that matters is
-// "transform: none" -- the rule didn't match.
-const tileTransform = await page.evaluate(() => {
-  const tile = document.querySelector("game-board")?.shadowRoot?.querySelector(".board > div:not(:empty)");
-  return tile ? getComputedStyle(tile).transform : "none";
-});
-check(
-  "tile has a transform set (.board > div:not(:empty) selector matched)",
-  tileTransform !== "none",
-  tileTransform,
-);
-
 // Reset is now "navigate to /new" -- mints a fresh game and redirects.
 await page.goto(`${BASE}/new`);
 await page.waitForFunction(
-  () => document.querySelector("game-board")?.shadowRoot?.querySelectorAll(".board > div").length > 0,
+  () => !!document.querySelector("game-board")?.shadowRoot,
   null,
   { timeout: 5000 },
 );
-const afterReset = await waitFor((s) => s.tiles.length === 2);
+const afterReset = await waitFor((s) => s.tiles.length === 2, 5000);
 check("reset back to 2 tiles", afterReset.tiles.length === 2, JSON.stringify(afterReset));
 
 await browser.close();

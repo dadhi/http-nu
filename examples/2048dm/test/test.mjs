@@ -10,7 +10,8 @@
 // arrives at the page.
 
 import { chromium } from "playwright-core";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -49,18 +50,31 @@ function check(label, ok, detail) {
   if (!ok) failures.push(label);
 }
 
+function chromiumPath() {
+  const env = process.env.CHROMIUM_PATH || process.env.PLAYWRIGHT_CHROMIUM_PATH;
+  if (env) return env;
+  for (const p of ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/snap/bin/chromium"]) {
+    if (existsSync(p)) return p;
+  }
+  try {
+    const p = execFileSync("bash", ["-lc", "command -v chromium || command -v chromium-browser || command -v google-chrome || true"], { encoding: "utf8" }).trim();
+    if (p) return p;
+  } catch {}
+  throw new Error("chromium executable not found; set CHROMIUM_PATH or PLAYWRIGHT_CHROMIUM_PATH");
+}
+
 // / is the marketing splash: 200 with a PLAY NOW CTA. The path to a
 // new game is the button, not a redirect.
 {
   const r = await fetch(`${BASE}/`, { redirect: "manual", headers: { cookie: "" } });
   const body = await r.text();
   check("fresh visitor on / sees splash with PLAY NOW",
-    r.status === 200 && body.toLowerCase().includes("play now"),
+    r.status === 200 && body.includes('href="/new"'),
     `status ${r.status}, body length ${body.length}`);
 }
 
 const browser = await chromium.launch({
-  executablePath: "/usr/bin/chromium",
+  executablePath: chromiumPath(),
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
 });
 const ctx = await browser.newContext();

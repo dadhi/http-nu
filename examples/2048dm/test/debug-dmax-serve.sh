@@ -42,6 +42,19 @@ echo "== starting server =="
 "$HTTP_NU" --services --store "$STORE" "127.0.0.1:$PORT" "$SERVE_NU" >"$LOG" 2>&1 &
 PID=$!
 sleep 1
+if ! kill -0 "$PID" 2>/dev/null; then
+  echo "server exited early"
+  echo "== server exit code =="
+  wait "$PID" || true
+  echo
+  echo "== server log (startup) =="
+  tail -n 80 "$LOG" || true
+  exit 1
+fi
+
+echo "== server pid =="
+echo "$PID"
+echo
 
 echo "== server log (startup) =="
 tail -n 40 "$LOG" || true

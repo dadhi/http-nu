@@ -28,22 +28,32 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage();
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+const consoleLogs = [];
+page.on("console", (msg) => consoleLogs.push(`${msg.type()}: ${msg.text()}`));
 await page.goto(`${BASE}/new`);
 await page.waitForTimeout(2000);
 const out = await page.evaluate(() => {
   const host = document.querySelector("game-board");
+  const bodyAttrs = document.body.getAttributeNames().filter((n) => n.startsWith("data-"));
+  const bodySi = document.body.getAttribute("data-m-si");
   return {
+    hasDm: !!window.dm,
+    dmKeys: window.dm ? Object.keys(window.dm).slice(0, 12) : [],
     hasHost: !!host,
     attrs: host ? host.getAttributeNames() : [],
     stateAttr: host ? host.getAttribute("state") : null,
     statePropType: host ? typeof host.state : null,
     stateProp: host ? host.state : null,
     boardStateSignal: window.dm && window.dm.boardState,
+    scoreSignal: window.dm && window.dm.score,
     score: document.querySelector("#score")?.textContent ?? null,
     bodyClass: document.body.className,
+    bodyAttrs,
+    bodySiHead: bodySi ? bodySi.slice(0, 240) : null,
     html: host ? host.outerHTML : null,
   };
 });
+out.consoleLogs = consoleLogs;
 console.log(JSON.stringify(out, null, 2));
 await browser.close();
 cleanup();

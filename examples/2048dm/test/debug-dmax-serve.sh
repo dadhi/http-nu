@@ -60,6 +60,29 @@ echo "== server log (startup) =="
 tail -n 40 "$LOG" || true
 echo
 
+echo "== wait for listen =="
+for _ in 1 2 3 4 5; do
+  if curl -fsS "http://127.0.0.1:$PORT/dmax.js" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+if ! curl -fsS "http://127.0.0.1:$PORT/dmax.js" >/dev/null 2>&1; then
+  echo "server never started listening on $PORT"
+  echo "== ps =="
+  ps -fp "$PID" || true
+  echo
+  echo "== ss =="
+  ss -ltnp | grep ":$PORT" || true
+  echo
+  echo "== /proc/$PID/status =="
+  cat "/proc/$PID/status" || true
+  echo
+  echo "== server log =="
+  tail -n 120 "$LOG" || true
+  exit 1
+fi
+
 echo "== served /dmax.js checks =="
 echo "--- served /dmax.js size ---"
 curl -fsS "http://127.0.0.1:$PORT/dmax.js" | wc -lc
@@ -68,12 +91,16 @@ curl -fsS "http://127.0.0.1:$PORT/dmax.js" | tail -n 12
 echo
 
 echo "== served /new data-m-si snippet =="
-python3 - <<'PY' "$PORT"
-import sys, urllib.request, re
-port = sys.argv[1]
-html = urllib.request.urlopen(f"http://127.0.0.1:{port}/new").read().decode("utf-8", "replace")
+COOKIE_JAR="${COOKIE_JAR:-/tmp/2048-cookies-$$.txt}"
+PLAY_HTML="${PLAY_HTML:-/tmp/2048-play-$$.html}"
+PLAY_URL="$(curl -fsS -c "$COOKIE_JAR" -o /dev/null -w '%{redirect_url}' "http://127.0.0.1:$PORT/new")"
+echo "PLAY_URL=$PLAY_URL"
+curl -fsS -b "$COOKIE_JAR" "$PLAY_URL" -o "$PLAY_HTML"
+python3 - <<'PY' "$PLAY_HTML"
+import sys, re
+html = open(sys.argv[1], 'r', encoding='utf-8', errors='replace').read()
 m = re.search(r'data-m-si="([^"]+)"', html)
-print((m.group(1)[:500] if m else "NO data-m-si FOUND"))
+print((m.group(1)[:500] if m else 'NO data-m-si FOUND'))
 PY
 echo
 

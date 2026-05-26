@@ -469,6 +469,9 @@ let notes = source notes/serve.nu
         let owner_short = $owner_id | str substring 0..7
         let game_id_short = $game_id | str substring 0..7
         let home_href = ($req | href "/")
+        let resumed = (resume-game $game_id)
+        let init_state = ($resumed.state | state-for-wc)
+        let init_score = ($resumed.state.score | default 0)
         ([
           (DIV {class: "page"}
             (breadcrumb
@@ -488,7 +491,7 @@ let notes = source notes/serve.nu
               (DIV {class: "board-controls"} (render-score 0))
               (DIV {
                 class: "column"
-                "data-m-si": "{boardState: {tiles: [], gameOver: false}, score: 0, lastReqId: '', sse: {}}"
+                "data-m-si": ({boardState: $init_state, score: $init_score, lastReqId: '', sse: {}} | to json --raw)
                 "data-m-get^sse^retry.100^stat.sse@_init": ("'" + ($req | href $"/sse-wc/($game_id)") + "'")
               }
                 (DIV {id: "board-wrap"}
@@ -557,6 +560,9 @@ let notes = source notes/serve.nu
         "Not Found" | metadata set { merge {'http.response': {status: 404}} }
       } else {
       let home_href = ($req | href "/")
+      let resumed = (resume-game $game_id)
+      let init_state = ($resumed.state | state-for-wc)
+      let init_score = ($resumed.state.score | default 0)
       let scheme = $req.headers
         | get x-forwarded-proto?
         | default (if ($HTTP_NU.tls? | default null) != null { "https" } else { "http" })
@@ -624,7 +630,7 @@ let notes = source notes/serve.nu
             --body-class "play"
             --sse true
             --body-attrs {
-              "data-m-si": $"{moveBase: {gameId: '($game_id)'}, score: 0, lastReqId: '', boardState: {tiles: [], gameOver: false}, sse: {}, moveCmd: null}"
+              "data-m-si": ({moveBase: {gameId: $game_id}, score: $init_score, lastReqId: '', boardState: $init_state, sse: {}, moveCmd: null} | to json --raw)
               "data-m-post^json^stat.move-req@move-cmd^not-immediate+move-cmd^spread": ("'" + ($req | href "/move") + "'")
             }
         | session-cookies set $session)

@@ -80,6 +80,7 @@ const browser = await chromium.launch({
 const ctx = await browser.newContext();
 const page = await ctx.newPage();
 page.on("pageerror", (err) => console.log(`  [pageerror] ${err.message}`));
+page.on("console", (msg) => console.log(`  [console:${msg.type()}] ${msg.text()}`));
 
 // /new mints a games_topic frame and 302s to /play/<game-id>.
 await page.goto(`${BASE}/new`);
@@ -100,6 +101,10 @@ function snapshot() {
       children: board?.children.length ?? 0,
       tiles: (state?.tiles ?? []).map((t) => String(t.value)),
       state,
+      stateAttr,
+      boardStateSignal: window.dm?.boardState ?? null,
+      scoreSignal: window.dm?.score ?? null,
+      bodySi: document.body.getAttribute("data-m-si"),
     };
   });
 }
